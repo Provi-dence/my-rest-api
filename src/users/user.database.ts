@@ -1,4 +1,135 @@
-import { User, UnitUser, Users } from './user.interface';
+
+import { UnitUser } from './user.interface';
+import bcrypt from 'bcryptjs';
+import { v4 as random } from 'uuid';
+import { db } from '../firebase';
+
+
+export const create = async (newUser: UnitUser): Promise<UnitUser | null> => {
+    
+    let id = random();
+    let check_user = await findOne(id);
+
+    while (check_user) {
+        id = random();
+        check_user = await findOne(id);
+    }
+
+    const asin = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newUser.password, asin);
+    
+    const user: UnitUser = {
+        id: id,
+        username: newUser.username,
+        email: newUser.email,
+        password: hashedPassword,
+    };
+
+    try{
+        await db.ref(`users/${id}`).set(user);
+        console.log('User created successfully:', user);
+        return user;
+    } catch (error) {
+        console.log(` Error creating user: ${error}`);
+        return null;
+    }
+};
+
+export const findAll = async (): Promise<UnitUser[]> => {
+    try{
+        const snapshot = await db.ref("users").once("value");
+        return snapshot.val() ? Object.values(snapshot.val()) : [];
+    } catch (error) {
+        console.error(` Error fetching users: ${error}`);
+        return [];
+    }
+};
+
+export const findOne = async (id: string): Promise<UnitUser | null> => {
+    try{
+        const snapshot = await db.ref(`users/${id}`).once("value");
+        return snapshot.exists() ? snapshot.val() : null;
+    } catch (error) {
+        console.error(` Error fetching user: ${error}`);
+        return null;
+    }
+};   
+
+
+
+export const findByEmail = async (user_email: string): Promise<UnitUser | null> => {
+    try{
+        const snapshot = await db.ref("users").orderByChild("email").equalTo(user_email).once("value");
+        const user = snapshot.val();
+        return user ? Object.values(user)[0] as UnitUser : null;
+    } catch (error) {
+        console.error("Error finding user by email:", error);
+        return null;
+    }
+};
+
+export const comparePassword = async (email : string, supplied_password : string): Promise<null | UnitUser> => {
+    const user = await findByEmail(email);
+
+    const decrypted_password = await bcrypt.compare(supplied_password, user!.password);
+
+    if(!decrypted_password){
+        return null;
+    }
+
+    return user;
+};
+
+export const update = async (id: string, updateValues: Partial<UnitUser>): Promise<UnitUser | null> => {
+    
+    const userExists = await findOne(id);
+    if(!userExists){
+        return null;
+    }
+
+    if(updateValues.password){
+        const asin = await bcrypt.genSalt(10);
+        const newPassword = await bcrypt.hash(updateValues.password, asin);
+
+        updateValues.password = newPassword;
+    }
+
+    try {
+        await db.ref(`users/${id}`).update(updateValues);
+        console.log('User updated successfully:', userExists);
+        return { ...userExists, ...updateValues };
+    } catch (error) {
+        console.log(` Error updating user: ${error}`);
+        return null;
+    }
+};
+
+export const remove = async (id: string): Promise<boolean> => {
+
+    try {
+        await db.ref(`users/${id}`).remove();
+        console.log('User deleted successfully');
+        return true;
+        
+    } catch (error) {
+        console.error(` Error deleting user: ${error}`);
+        return false;
+    }
+};
+
+export const removeAll = async (): Promise<boolean> => {
+    try{
+        await db.ref("users").remove();
+        console.log('All users deleted successfully');
+        return true;
+    } catch (error) {
+        console.log(` Error deleting users: ${error}`);
+        return false;
+    }
+}; 
+
+/**
+ import { User, UnitUser, Users } from './user.interface';
 import bcrypt from 'bcryptjs';
 import { v4 as random } from 'uuid';
 import fs from 'fs';
@@ -138,3 +269,4 @@ export const removeAll = async (): Promise<void> => {
         console.log(` Error deleting users: ${error}`);
     }
 }; 
+ */

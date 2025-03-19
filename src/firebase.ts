@@ -1,14 +1,13 @@
 import admin from "firebase-admin";
-import * as dotenv from "dotenv";
+import fs from "fs";
 
-dotenv.config();
-
-const serviceAccount = require("./firebase/firebase.json");
+// Read the service account JSON file
+const serviceAccount = JSON.parse(fs.readFileSync("./firebase/firebase.json", "utf8"));
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: process.env.FIREBASE_DATABASE_URL,
 });
 
-const db = admin.database();
-export { db };
+const db = admin.firestore();
+export { db, admin };
